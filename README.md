@@ -16,7 +16,7 @@ This project aims to classify music genres using the Free Music Archive (FMA) da
    - Performance Evaluation: Tracked training vs. test accuracy to monitor and mitigate overfitting.
 
 
-hiprparameters testing: https://docs.google.com/spreadsheets/d/1zVdp_KwDR07jjUFOIKxyNs_meEN2bUFtcPnCqbhq_AA/edit?gid=0#gid=0
+Hyperparameters testing table: https://docs.google.com/spreadsheets/d/1zVdp_KwDR07jjUFOIKxyNs_meEN2bUFtcPnCqbhq_AA/edit?gid=0#gid=0
 ## Tech Stack
 - Language: Python
 - Libraries: Pandas, NumPy, Scikit-learn, Librosa, Matplotlib, Seaborn
