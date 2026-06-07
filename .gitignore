@@ -1,3 +1,8 @@
 .venv/*
 fma_metadata/*
 fma_small/*
+presentation/**
+!presentation/
+!presentation/beamer-AGH-master/
+!presentation/beamer-AGH-master/example.tex
+!presentation/beamer-AGH-master/example.pdf
