@@ -85,11 +85,6 @@
 		PANNs/Cnn14 przez \texttt{panns\_inference} \\
 		\bottomrule
 	\end{tabular}
-
-	\vspace{0.5em}
-	\begin{alertblock}{Uwaga metodologiczna}
-		Nazwa ostatniego notebooka sugeruje MusicNN, ale implementacja używa checkpointu Cnn14 z PANNs: \texttt{Cnn14\_mAP=0.431.pth}.
-	\end{alertblock}
 \end{frame}
 
 \begin{frame}{Pipeline eksperymentalny}
@@ -251,7 +246,7 @@
 \begin{frame}{Zachowanie na poziomie gatunków}
 	\begin{columns}
 		\column{0.48\textwidth}
-		\begin{block}{Najczęściej silniejsze klasy}
+		\begin{block}{Najczęściej prawidłowo przewidywane klasy}
 			\begin{itemize}
 				\item Rock
 				\item Hip-Hop
@@ -260,7 +255,7 @@
 		\end{block}
 
 		\column{0.48\textwidth}
-		\begin{alertblock}{Najtrudniejsza klasa}
+		\begin{alertblock}{Najtrudniejsza do poprawnego przypisania klasa}
 			\begin{itemize}
 				\item Pop
 			\end{itemize}
@@ -279,7 +274,7 @@
 		\item Najbardziej praktyczny wariant w tych eksperymentach to embedding Cnn14 + PCA 95\% + Logistic Regression.
 	\end{enumerate}
 
-	\begin{block}{Konkluzja}
+	\begin{block}{Wniosek ogólny}
 		Dla klasyfikacji gatunków muzycznych transfer learning daje znacznie bogatszą reprezentację niż same ręcznie projektowane deskryptory audio.
 	\end{block}
 \end{frame}
