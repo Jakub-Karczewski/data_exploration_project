@@ -2,28 +2,24 @@
 
 ## 1. Introduction
 
-### Project Goal
+This project explores automatic music genre classification on the Free Music Archive
+(FMA) Small dataset. The goal is to predict one of eight parent genres from audio
+content only, and to compare two feature-representation strategies:
 
-The goal of this project was to build a machine learning model capable of classifying music tracks into genres based solely on audio-derived features.
+1. **Hand-crafted audio descriptors extracted with librosa**
+2. **Pretrained neural-network embeddings extracted from a pretrained audio model**
 
-The task can be formulated as a multiclass classification problem, where each track is assigned to one of several predefined music genres. In addition to obtaining accurate predictions, the project aimed to investigate the influence of different feature extraction techniques, dimensionality reduction methods, and classification algorithms on overall performance.
+The main research question is whether a model trained on manually calculated
+statistics such as MFCCs, chroma, and spectral descriptors can match the
+performance of embeddings learned by a pretrained deep audio model.
 
+## 2. Dataset
 
-## 2. Dataset Description
-
-### Free Music Archive (FMA)
-
-This project uses the **Free Music Archive (FMA)** dataset, a publicly available collection of music tracks and metadata designed for machine learning research.
-
-Repository:
+The experiments use the **FMA Small** subset from the Free Music Archive:
 
 https://github.com/mdeff/fma
 
-### FMA Small Subset
-
-The experiments were conducted on the **FMA Small** subset, which contains approximately 8,000 audio tracks equally distributed across eight music genres (1000 per genre).
-
-The genres include:
+FMA Small contains approximately 8,000 tracks balanced across eight genres:
 
 - Electronic
 - Experimental
@@ -34,335 +30,245 @@ The genres include:
 - Pop
 - Rock
 
-Each track contains:
+The original FMA split information was used. In the embedding experiment, invalid
+or unreadable audio files were skipped, resulting in 6,400 (6 of them were rejected, because they couldn't be processed with the current pipeline) training tracks and
+1,600 validation/test tracks.
 
-- An audio file (`.mp3`)
-- A unique track identifier
-- Parent genre label
-- Dataset split information (training, validation, testing)
+## 3. Experiment Overview
 
----
+Three notebooks are compared:
 
-## 3. Data Preparation
+| Notebook | Feature strategy | Feature count before PCA | Main representation |
+|---|---:|---:|---|
+| `fma_small_librosa_70.ipynb` | librosa, reduced (only mean and std) hand-crafted feature set | 70 | MFCC, chroma, RMS, spectral centroid, ZCR statistics |
+| `fma_small_librosa_full.ipynb` | librosa, larger (additionally e.g. skew, curtosis) hand-crafted feature set | 518 | Broad librosa descriptor set with multiple statistics |
+| `less_features_musicNN.ipynb` | pretrained model embeddings | 2,048 | PANNs/Cnn14 audio embeddings loaded through `panns_inference` |
 
-### Metadata Integration
-
-The first step consisted of linking audio files with metadata provided by the FMA dataset. This allowed every track to be associated with its corresponding genre label and dataset split.
-
-### Audio Processing
-
-Audio files were processed using the **Librosa** library, a widely used Python package for music and audio analysis.
-
-The library provides tools for:
-
-- Loading audio signals,
-- Spectral analysis,
-- Feature extraction,
-- Time-frequency transformations.
-
----
+Although the last notebook name mentions MusicNN, the implemented pretrained
+embedding extractor uses `panns_inference.AudioTagging` with a Cnn14 checkpoint
+(`Cnn14_mAP=0.431.pth`). The comparison below therefore treats it as a
+pretrained audio-embedding experiment.
 
 ## 4. Feature Extraction
 
-The quality of genre classification strongly depends on the representation of the audio signal. Therefore, multiple groups of features were extracted from each track.
+### Librosa Features
 
-### MFCC Features
+The librosa-only experiments calculate descriptive statistics directly from the
+audio signal. The smaller feature set contains:
 
-Mel-Frequency Cepstral Coefficients (MFCCs) are among the most commonly used features in audio classification.
+- Chroma STFT mean and standard deviation
+- MFCC mean and standard deviation
+- RMS energy mean and standard deviation
+- Spectral centroid mean and standard deviation
+- Zero crossing rate mean and standard deviation
 
-They provide a compact representation of the spectral envelope while approximating the way humans perceive sound frequencies.
+The full librosa feature set expands this to 518 features, including additional
+spectral, chroma, tonal, and statistical descriptors such as mean, standard
+deviation, skewness, kurtosis, minimum, maximum, and median values.
 
-### Chroma Features
+These features are interpretable and relatively cheap to compute, but they
+describe audio through fixed, hand-designed measurements.
 
-Chroma features represent the distribution of energy among the twelve pitch classes.
+### Pretrained Embeddings
 
-They are useful for capturing harmonic and tonal information present in music.
+The pretrained experiment loads audio at 32 kHz and passes it through a
+pretrained Cnn14 model from PANNs. For each track, the model produces a
+2,048-dimensional embedding.
 
-### Spectral Features
+These embeddings are not manually selected acoustic statistics. They are learned
+representations from a neural network previously trained on large-scale audio
+tagging data. As a result, they can encode higher-level information such as
+instrumentation, timbre, texture, rhythm, and broad sound-event patterns that are
+hard to capture with simple summary statistics.
 
-Several spectral descriptors were extracted:
+## 5. Preprocessing and Dimensionality Reduction
 
-- Spectral Centroid
-- Spectral Bandwidth
-- Spectral Rolloff
-- Spectral Contrast
+For the librosa experiments:
 
-These features describe the frequency content of an audio signal and often help distinguish between different genres.
+- Features were standardized with `StandardScaler`.
+- PCA was tested with 4 principal components.
+- Models were also trained without PCA.
 
-### Zero Crossing Rate
+For the pretrained embedding experiment:
 
-The zero crossing rate measures how often the audio waveform changes sign.
+- Embeddings were L2-normalized.
+- PCA was evaluated using explained variance.
+- 106 components preserved 90% variance.
+- 182 components preserved 95% variance.
+- Several models were trained on the 95% PCA representation, and LightGBM was
+  also tested directly on the normalized embeddings without PCA.
 
-This feature is particularly useful for distinguishing tonal sounds from noisy signals.
+## 6. Models
 
-### RMS Energy
+The notebooks evaluate the following classifiers:
 
-Root Mean Square (RMS) Energy provides a measure of signal loudness and overall intensity.
+- Support Vector Machine (linear and RBF kernels)
+- Random Forest
+- LightGBM
+- Logistic Regression
 
-### Additional Statistical Features
+The same broad evaluation metrics are used throughout:
 
-For many extracted descriptors, summary statistics such as:
+- Test accuracy
+- Macro F1 score
+- Precision and recall through classification reports
+- Confusion matrices for selected models
 
-- Mean
-- Standard Deviation
-- Minimum
-- Maximum
+## 7. Results
 
-were computed over the duration of the track.
+### Librosa, 70 Features
 
----
+| Representation | Model | Train accuracy | Test accuracy | Macro F1 |
+|---|---:|---:|---:|---:|
+| PCA, 4 components | SVM, linear | 0.342 | 0.339 | 0.31 |
+| PCA, 4 components | Random Forest | 0.452 | 0.329 | 0.31 |
+| No PCA | Random Forest | 0.598 | 0.438 | 0.42 |
+| No PCA | SVM, RBF | 0.506 | 0.446 | 0.43 |
+| No PCA | LightGBM | 0.738 | 0.444 | 0.44 |
+| No PCA | Logistic Regression | 0.506 | 0.394 | 0.39 |
 
-## 5. Exploratory Data Analysis
+The best 70-feature librosa result is approximately **44.6% test accuracy** with
+an RBF SVM. LightGBM achieves a very similar accuracy and slightly higher macro
+F1, but with a larger train/test gap.
 
-Before training machine learning models, exploratory analysis was performed.
+### Librosa, 518 Features
 
-The following aspects were investigated:
+| Representation | Model | Train accuracy | Test accuracy | Macro F1 |
+|---|---:|---:|---:|---:|
+| PCA, 4 components | SVM, linear | 0.340 | 0.317 | 0.27 |
+| PCA, 4 components | Random Forest | 0.436 | 0.324 | 0.31 |
+| No PCA | Random Forest | 0.653 | 0.460 | 0.44 |
+| No PCA | SVM, RBF | 0.441 | 0.411 | 0.39 |
+| No PCA | LightGBM | 0.844 | 0.472 | 0.47 |
+| No PCA | Logistic Regression | 0.705 | 0.449 | 0.45 |
 
-- Class distribution,
-- Missing values,
-- Feature distributions,
-- Correlations between features.
+The larger librosa feature set improves the best result from about **44.6%** to
+about **47.2%** test accuracy. The best model here is LightGBM, but the high
+training accuracy indicates noticeable overfitting.
 
-This stage helped identify potential issues related to data quality and class imbalance.
+### Pretrained Embeddings
 
----
+| Representation | Model | Train accuracy | Test accuracy | Macro F1 / other score |
+|---|---:|---:|---:|---|
+| Normalized 2,048-d embedding, no PCA | LightGBM | not reported | 0.610 | 0.610 |
+| PCA, 182 components | LightGBM | 0.817 | 0.599 | 0.595 |
+| PCA, 182 components | Logistic Regression | 0.672 | 0.611 | 0.610 |
+| PCA, 182 components | Random Forest, grid search | 0.998 | 0.603 | test macro F1 not reported; CV macro F1 0.631 |
 
-## 6. Data Preprocessing
+The best reported pretrained-embedding result is **61.1% test accuracy** with
+Logistic Regression on PCA-reduced embeddings. LightGBM without PCA reaches
+**61.0%** test accuracy and **0.610** macro F1, which is almost identical.
 
-### Feature Scaling
+The Random Forest result has competitive test accuracy, but the training accuracy
+of 0.998 shows severe overfitting.
 
-Because many machine learning algorithms are sensitive to feature scales, standardization was applied.
+## 8. Main Comparison
 
-The transformation was performed using:
+| Best setup | Test accuracy | Macro F1 | Difference vs best librosa |
+|---|---:|---:|---:|
+| Best librosa, 70 features | 0.446 | 0.43 | baseline reduced feature set |
+| Best librosa, 518 features | 0.472 | 0.47 | baseline full feature set |
+| Best pretrained embedding setup | 0.611 | 0.610 | +0.139 accuracy over full librosa |
 
-```python
-StandardScaler()
+The pretrained embeddings improve test accuracy by about **13.9 percentage
+points** compared with the best full librosa-only model:
+
+```text
+0.611 - 0.472 = 0.139
 ```
 
-which transforms each feature according to:
+Relative to the smaller 70-feature librosa setup, the improvement is about
+**16.5 percentage points**:
 
-\[
-x' = \frac{x - \mu}{\sigma}
-\]
+```text
+0.611 - 0.446 = 0.165
+```
 
-where:
+## 9. Interpretation
 
-- \(\mu\) is the mean,
-- \(\sigma\) is the standard deviation.
+The experiments show that hand-crafted librosa features are useful, but they
+hit a performance ceiling on this task. Even with 518 calculated descriptors,
+the best test accuracy remains below 50%.
 
-### Benefits of Scaling
+The pretrained embeddings perform better because they come from a model that has
+already learned general audio representations from a much larger audio-tagging
+task. Instead of describing each track only through fixed low-level statistics,
+the embedding captures richer patterns across time and frequency.
 
-- Faster model convergence,
-- Improved numerical stability,
-- Better performance for distance-based algorithms,
-- Improved PCA results.
+Key observations:
 
----
+- Increasing librosa features from 70 to 518 improves accuracy, but only
+  moderately.
+- PCA with only 4 components loses too much information for the librosa models.
+- The best librosa models depend on nonlinear classifiers such as LightGBM or
+  RBF SVM.
+- Pretrained embeddings work well even with a simple Logistic Regression model.
+- The embedding models generalize better, while Random Forest models still
+  overfit when they become too flexible.
 
-## 7. Dimensionality Reduction
+## 10. Genre-Level Behavior
 
-### Principal Component Analysis (PCA)
+Across the librosa classification reports, the strongest classes are usually:
 
-The extracted feature space was relatively high-dimensional. To reduce redundancy and computational complexity, Principal Component Analysis (PCA) was applied.
+- Rock
+- Hip-Hop
+- Electronic
 
-PCA transforms the original features into a smaller set of orthogonal components while preserving as much variance as possible.
+The weakest class is often:
 
-The main objectives were:
+- Pop
 
-- Reduce dimensionality,
-- Remove correlated information,
-- Speed up model training,
-- Reduce overfitting.
+This is expected because Pop overlaps acoustically with several other genres.
+Other recurring confusions include:
 
-### Selecting the Number of Components
+- Rock vs Pop
+- Folk vs International
+- Electronic vs Experimental
+- Instrumental vs Folk or International
 
-The number of retained components was determined using cumulative explained variance analysis.
+These confusions suggest that genre labels are not always separable using only
+low-level acoustic descriptors.
 
-The selected configuration preserved approximately 90–95% of the total variance while substantially reducing dimensionality.
+## 11. Conclusions
 
----
+This project demonstrates a full machine-learning workflow for music genre
+classification:
 
-## 8. Machine Learning Models
+1. Metadata and audio loading
+2. Feature extraction
+3. Scaling and normalization
+4. PCA analysis
+5. Model training
+6. Evaluation with accuracy, macro F1, and confusion matrices
 
-Several classification algorithms were evaluated.
+The main conclusion is that **pretrained audio embeddings substantially
+outperform manually calculated librosa features** on FMA Small. The best
+librosa-only model reaches about **47.2%** test accuracy, while the best
+pretrained-embedding model reaches about **61.1%**.
 
-### Logistic Regression
+Librosa features remain valuable because they are interpretable, lightweight,
+and useful as a baseline. However, for predictive performance, transfer learning
+from pretrained audio models provides a much stronger representation.
 
-Logistic Regression served as a baseline model.
+## 12. Future Work
 
-Advantages:
+Possible next steps:
 
-- Fast training,
-- Easy interpretation,
-- Strong baseline performance.
-
-Limitations:
-
-- Assumes linear decision boundaries,
-- Limited ability to model complex relationships.
-
----
-
-### Random Forest
-
-Random Forest is an ensemble learning method based on multiple decision trees.
-
-Advantages:
-
-- Robust against overfitting,
-- Handles nonlinear relationships,
-- Provides feature importance estimates.
-
-Hyperparameters explored included:
-
-- Number of trees,
-- Maximum depth,
-- Minimum samples per leaf,
-- Maximum number of features.
-
----
-
-### LightGBM
-
-LightGBM is a gradient boosting framework based on decision trees.
-
-Advantages:
-
-- High predictive performance,
-- Efficient training,
-- Good scalability,
-- Handles large feature spaces effectively.
-
-Hyperparameter optimization was performed to improve generalization performance.
-
----
-
-## 9. Experimental Setup
-
-### Data Splitting
-
-The original train/test split provided by the FMA dataset was used.
-
-Training data were used for:
-
-- Model fitting,
-- Hyperparameter tuning.
-
-Testing data were used exclusively for final evaluation.
-
-### Evaluation Metrics
-
-The following metrics were calculated:
-
-#### Accuracy
-
-\[
-Accuracy = \frac{TP + TN}{TP + TN + FP + FN}
-\]
-
-#### Macro F1 Score
-
-Macro F1 computes the F1-score independently for each class and then averages the results.
-
-This metric is particularly useful for multiclass classification tasks.
-
-#### Precision
-
-Measures the proportion of correctly predicted positive samples among all positive predictions.
-
-#### Recall
-
-Measures the proportion of correctly identified positive samples among all actual positives.
-
----
-
-## 10. Results
-
-### Model Comparison
-
-| Model | Train Accuracy | Test Accuracy | Macro F1 |
-|---------|---------|---------|---------|
-| Logistic Regression | ... | ... | ... |
-| Random Forest | 0.998 | 0.603 | 0.595 |
-| LightGBM | 0.817 | 0.599 | 0.595 |
-
-### Observations
-
-- Random Forest achieved very high training accuracy but exhibited noticeable overfitting.
-- LightGBM provided a better balance between training and testing performance.
-- PCA significantly reduced computational requirements while maintaining predictive quality.
-- Genre classification remains challenging because several genres share similar acoustic characteristics.
-
----
-
-## 11. Discussion
-
-### Impact of PCA
-
-PCA successfully reduced feature dimensionality while preserving most of the information contained in the original feature space.
-
-Benefits observed:
-
-- Reduced training time,
-- Lower memory usage,
-- Improved model stability.
-
-### Overfitting Analysis
-
-Random Forest achieved nearly perfect performance on training data but considerably lower performance on unseen samples.
-
-This suggests that the model learned patterns specific to the training set rather than generalizable characteristics of music genres.
-
-### Genre Confusion
-
-Certain genres were frequently confused due to similar musical structures and instrumentation.
-
-Typical examples include:
-
-- Rock vs Pop,
-- Folk vs International,
-- Electronic vs Experimental.
-
-Confusion matrices revealed that these classes share overlapping feature distributions.
-
----
-
-## 12. Conclusions
-
-This project demonstrated a complete machine learning pipeline for automatic music genre classification.
-
-The workflow included:
-
-1. Audio preprocessing,
-2. Feature extraction,
-3. Feature scaling,
-4. Dimensionality reduction using PCA,
-5. Model training and evaluation.
-
-Key findings:
-
-- Audio features extracted with Librosa contain enough information to achieve meaningful genre classification performance.
-- PCA effectively reduces dimensionality without substantial loss of predictive power.
-- Ensemble methods such as Random Forest and LightGBM outperform simple linear models.
-- Music genre classification remains a challenging task due to significant overlap between genres.
-
-### Future Work
-
-Potential improvements include:
-
-- Deep learning models operating directly on spectrograms,
-- Convolutional Neural Networks (CNNs),
-- Audio Spectrogram Transformers (AST),
-- Data augmentation techniques,
-- Larger datasets such as FMA Medium or FMA Large,
-- Transfer learning using pretrained audio models.
-
----
+- Evaluate additional pretrained audio models such as OpenL3, VGGish, YAMNet,
+  CLAP, or Audio Spectrogram Transformer embeddings.
+- Fine-tune a pretrained model directly on FMA Small.
+- Combine librosa descriptors with pretrained embeddings.
+- Use data augmentation to reduce overfitting.
+- Tune class-specific thresholds or use calibration methods.
+- Run the same comparison on FMA Medium or FMA Large.
+- Report per-class F1 scores for the embedding models to compare genre-level
+  improvements directly.
 
 ## References
 
 1. Defferrard, M., Benzi, K., Vandergheynst, P., & Bresson, X. (2017). FMA: A Dataset For Music Analysis.
-2. Librosa Documentation: https://librosa.org
-3. Scikit-learn Documentation: https://scikit-learn.org
-4. LightGBM Documentation: https://lightgbm.readthedocs.io
-5. Free Music Archive Dataset Repository: https://github.com/mdeff/fma
+2. FMA dataset repository: https://github.com/mdeff/fma
+3. Librosa documentation: https://librosa.org
+4. Scikit-learn documentation: https://scikit-learn.org
+5. LightGBM documentation: https://lightgbm.readthedocs.io
+6. PANNs: Large-Scale Pretrained Audio Neural Networks for Audio Pattern Recognition
