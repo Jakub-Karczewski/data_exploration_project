@@ -250,20 +250,6 @@ Librosa features remain valuable because they are interpretable, lightweight,
 and useful as a baseline. However, for predictive performance, transfer learning
 from pretrained audio models provides a much stronger representation.
 
-## 12. Future Work
-
-Possible next steps:
-
-- Evaluate additional pretrained audio models such as OpenL3, VGGish, YAMNet,
-  CLAP, or Audio Spectrogram Transformer embeddings.
-- Fine-tune a pretrained model directly on FMA Small.
-- Combine librosa descriptors with pretrained embeddings.
-- Use data augmentation to reduce overfitting.
-- Tune class-specific thresholds or use calibration methods.
-- Run the same comparison on FMA Medium or FMA Large.
-- Report per-class F1 scores for the embedding models to compare genre-level
-  improvements directly.
-
 ## References
 
 1. Defferrard, M., Benzi, K., Vandergheynst, P., & Bresson, X. (2017). FMA: A Dataset For Music Analysis.
